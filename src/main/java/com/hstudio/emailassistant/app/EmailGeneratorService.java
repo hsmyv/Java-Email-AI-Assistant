@@ -26,7 +26,7 @@ public class EmailGeneratorService {
     public String generateEmailReply(EmailRequest emailRequest){
         String prompt = buildPrompt(emailRequest);
         Map<String, Object> requestBody = Map.of(
-                "Contents", new Object[]{
+                "contents", new Object[]{
                         Map.of(
                                 "parts", new Object[]{
                                         Map.of("text", prompt)
@@ -35,8 +35,9 @@ public class EmailGeneratorService {
         );
 
         String response = webClient.post()
-                .uri(geminiApiUrl + geminiApiKey)
+                .uri(geminiApiUrl)
                 .header("Content-Type", "application/json")
+                .header("X-goog-api-key", geminiApiKey)
                 .bodyValue(requestBody)
                 .retrieve()
                 .bodyToMono(String.class)
@@ -49,15 +50,28 @@ public class EmailGeneratorService {
         try {
             ObjectMapper mapper = new ObjectMapper();
             JsonNode rootNode = mapper.readTree(response);
-            return rootNode.path("candidates")
-                    .get(0)
-                    .path("content")
-                    .path("parts")
-                    .get(0)
-                    .path("text").asText();
 
-        }catch (Exception e){
-            return "Error processing request: " + e.getMessage();
+            JsonNode candidates = rootNode.path("candidates");
+
+            if (!candidates.isArray() || candidates.isEmpty()) {
+                return "No candidates returned from Gemini";
+            }
+
+            JsonNode parts = candidates.get(0)
+                    .path("content")
+                    .path("parts");
+
+            if (!parts.isArray() || parts.isEmpty()) {
+                return "No parts returned from Gemini";
+            }
+
+            return parts.get(0)
+                    .path("text")
+                    .asText();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "Error: " + e.getMessage();
         }
     }
 
